@@ -180,6 +180,26 @@ To see the full list of options, call `python -m bioemu.sidechain_relax --help`.
 
 The script saves reconstructed all-heavy-atom structures in `samples_sidechain_rec.{pdb,xtc}` and MD-equilibrated structures in `samples_md_equil.{pdb,xtc}` (filename to be altered with `--outname other_name`).
 
+## Extracting MD features
+Given a trajectory (the `samples_md_equil.{pdb,xtc}` produced above, or any mdtraj-loadable trajectory), the `bioemu.extract_md_features` module extracts per-frame featurizations for analysis or machine learning. The topology is auto-detected, so it works on both backbone-only samples and side-chain-reconstructed structures.
+
+```bash
+python -m bioemu.extract_md_features --traj samples_md_equil.xtc --top samples_md_equil.pdb --out-dir features/
+```
+
+This computes dihedrals (backbone + side-chain), Cα–Cα distances and contacts, radius of gyration, RMSD, DSSP, SASA and H-bonds, and writes them to `features/`:
+- `*_features.npz` — raw per-frame feature matrices for TICA/MSM analysis.
+- `*_features_ml.pt` — z-scored `torch` tensors with normalisation stats for ML training.
+- `*_summary.csv`, `*_per_residue.csv`, `*_metadata.json`.
+
+For long trajectories, stream the file in chunks and/or subsample frames:
+
+```bash
+python -m bioemu.extract_md_features --traj traj.xtc --top top.pdb --out-dir features/ --chunk 200 --stride 10
+```
+
+To see the full list of options, call `python -m bioemu.extract_md_features --help`.
+
 ## Third-party code
 - The code in `src/bioemu/openfold/` is copied from [OpenFold](https://github.com/aqlaboratory/openfold) (Apache 2.0) with minor modifications described in the relevant source files.
 - The code in `src/_vendor/alphafold/` is a vendored, patched subset of [AlphaFold2](https://github.com/google-deepmind/alphafold) v2.3.2 (Apache 2.0). See [src/_vendor/alphafold/README.md](src/_vendor/alphafold/README.md) for details on the modifications.
