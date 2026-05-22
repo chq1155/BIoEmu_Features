@@ -10,7 +10,7 @@
   requires-python = ">=3.10"
   dependencies = [
     "mdtraj>=1.9.9",
-    "torch_geometric>=2.6.1",
+    "torch_geometric>=2.6.1",  # also required by bioemu.extract_internal_features (verified vs bioemu-v1.1)
     "torch>=2.6.0",
     "modelcif==0.7",
     "bio>=1.5.9",

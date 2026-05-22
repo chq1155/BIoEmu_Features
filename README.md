@@ -200,6 +200,46 @@ python -m bioemu.extract_md_features --traj traj.xtc --top top.pdb --out-dir fea
 
 To see the full list of options, call `python -m bioemu.extract_md_features --help`.
 
+## Extracting BioEmu internal representations
+Distinct from the geometric MD features above, the `bioemu.extract_internal_features` module extracts BioEmu's *learned internal activations* — the encoder's per-residue representation `x1d` (width 512) tapped from the diffusion score model via forward hooks. These are not system-size-dependent geometric descriptors but the model's own latent features, captured at chosen encoder layers and diffusion times. Two output forms are produced per `(layer, time)`: `per_residue` of shape `[L, 512]` (one vector per residue, so size-dependent) and `pooled` of shape `[512]` (residue-pooled, fixed width and comparable across proteins of different lengths).
+
+```python
+from bioemu.extract_internal_features import extract_bioemu_internal_features
+
+feats = extract_bioemu_internal_features(
+    sequence="GYDPETGTWG",        # protein sequence
+    layers=(-1, 3, 7),            # -1 = pre-encoder x1d; 0..7 = encoder layer outputs
+    diffusion_times=(0.99, 0.5, 0.1),  # in [0,1]; snapped to nearest denoiser timestep
+    pooling="mean",               # "mean" (no params) | "attention" | "learned"
+    model_name="bioemu-v1.1",
+    batch_size=1,
+    num_denoiser_steps=50,
+    denoiser_type="dpm",          # or "heun"
+    seed=0,
+)
+# returns dict keyed by (layer, time) -> InternalFeature with:
+#   .per_residue  Tensor [L, 512]   (system-size dependent)
+#   .pooled       Tensor [512]      (fixed width, comparable across proteins)
+#   .snapped_time float             (nearest denoiser timestep actually used)
+```
+
+Or using the CLI (runnable as a module):
+
+```bash
+python -m bioemu.extract_internal_features --sequence GYDPETGTWG \
+    --layers -1,3,7 --times 0.99,0.5,0.1 --pooling mean --out feats.pt
+```
+
+- **Layer indices**: `-1` is the pre-encoder `x1d` (input to layer 0); `0..7` are the outputs of encoder layers 0 through 7 (8 encoder layers total).
+- **`diffusion_times`**: values in `[0,1]` along the reverse process; each is snapped to the nearest denoiser timestep actually visited, reported back as `.snapped_time`.
+- **Pooling**: `mean` (default, parameter-free) pools over residues; `attention` and `learned` are trainable modules exposed for later fine-tuning.
+- **Output shapes**: `per_residue` is `[L, 512]` (varies with sequence length `L`); `pooled` is `[512]` (fixed width).
+
+> [!NOTE]
+> This feature requires a working `torch_geometric` + BioEmu runtime (the same environment used to run BioEmu sampling). On first use it downloads the pretrained `bioemu-v1.1` checkpoint and queries the ColabFold MSA server (or pass a cached `msa_file`). It is verified against `bioemu-v1.1` (repo version `1.4.0`) and asserts the architecture at runtime (8 encoder layers, `d_model` 512), so a future BioEmu architecture change fails loudly rather than silently returning wrong features.
+
+To see the full list of options, call `python -m bioemu.extract_internal_features --help`. A runnable demo is in [`examples/extract_internal_features_demo.py`](examples/extract_internal_features_demo.py).
+
 ## Third-party code
 - The code in `src/bioemu/openfold/` is copied from [OpenFold](https://github.com/aqlaboratory/openfold) (Apache 2.0) with minor modifications described in the relevant source files.
 - The code in `src/_vendor/alphafold/` is a vendored, patched subset of [AlphaFold2](https://github.com/google-deepmind/alphafold) v2.3.2 (Apache 2.0). See [src/_vendor/alphafold/README.md](src/_vendor/alphafold/README.md) for details on the modifications.
